@@ -9,3 +9,6 @@ target_link_libraries(send paho-mqttpp3 paho-mqtt3as)
 
 add_executable(receive receive.cpp)
 target_link_libraries(receive paho-mqttpp3 paho-mqtt3as)
+
+add_executable(send2 send2.cpp)
+target_link_libraries(send2 paho-mqttpp3 paho-mqtt3as)
