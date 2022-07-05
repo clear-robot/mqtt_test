@@ -9,6 +9,8 @@
 #include <thread>
 #include <chrono>
 #include "mqtt/async_client.h"
+#include "time_stamp.h"
+#include "unistd.h"
 
 const std::string SERVER_ADDRESS("tcp://120.76.196.124:50000");
 const std::string CLIENT_ID("kaylor_office_PC_send2");
@@ -90,9 +92,11 @@ class callback : public virtual mqtt::callback,
   }
 
   void message_arrived(mqtt::const_message_ptr msg) override {
+    timestamp_t rev_stamp = TimeStamp::now_with_milliseconds();
     std::cout << "Message arrived" << std::endl;
     std::cout << "\ttopic: '" << msg->get_topic() << "'" << std::endl;
     std::cout << "\tpayload: '" << msg->to_string() << "'\n" << std::endl;
+    std::cout << "Receive time: " << rev_stamp << std::endl;
   }
 
   void delivery_complete(mqtt::delivery_token_ptr token) override {}
@@ -125,13 +129,14 @@ int main(int argc, char *argv[]) {
               << SERVER_ADDRESS << "'" << std::endl;
     return 1;
   }
-
-  auto mqtt_message = mqtt::make_message(S_SEND_TOPIC, "This message is from controller");
+  char tmp[128];
+  sprintf(tmp, "Send time: %lld", TimeStamp::now_with_milliseconds());
+  auto mqtt_message = mqtt::make_message(S_SEND_TOPIC, tmp);
   mqtt_message->set_qos(QOS);
   client.publish(mqtt_message)->wait_for(TIMEOUT);
 
-  while (std::tolower(std::cin.get()) != 'q'){}
-
+//  while (std::tolower(std::cin.get()) != 'q'){}
+  sleep(1);
   try {
     std::cout << "\nDisconnecting from the MQTT server..." << std::flush;
     client.disconnect()->wait();

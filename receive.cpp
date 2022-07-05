@@ -93,7 +93,8 @@ class callback : public virtual mqtt::callback,
     std::cout << "Message arrived" << std::endl;
     std::cout << "\ttopic: '" << msg->get_topic() << "'" << std::endl;
     std::cout << "\tpayload: '" << msg->to_string() << "'\n" << std::endl;
-    auto mqtt_message = mqtt::make_message(SEND_TOPIC, "This message is from robot");
+//    auto mqtt_message = mqtt::make_message(SEND_TOPIC, "This message is from robot");
+    auto mqtt_message = mqtt::make_message(SEND_TOPIC, msg->to_string());
     mqtt_message->set_qos(QOS);
     cli_.publish(mqtt_message)->wait_for(TIMEOUT);
   }
