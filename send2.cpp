@@ -11,6 +11,10 @@
 #include "mqtt/async_client.h"
 #include "time_stamp.h"
 #include "unistd.h"
+#include "fstream"
+#include "nlohmann/json.hpp"
+
+using json = nlohmann::json;
 
 const std::string SERVER_ADDRESS("tcp://120.76.196.124:50000");
 const std::string CLIENT_ID("kaylor_office_PC_send2");
@@ -46,10 +50,20 @@ class action_listener : public virtual mqtt::iaction_listener {
 
 class callback : public virtual mqtt::callback,
                  public virtual mqtt::iaction_listener {
+
+ public:
+  static timestamp_t send_stamp;
+  ~callback(){
+    std::cout << "~callback function" << std::endl;
+    out_file_.close();
+  }
+ private:
   int nretry_;
   mqtt::async_client &cli_;
   mqtt::connect_options &connOpts_;
   action_listener subListener_;
+  std::fstream out_file_;
+
 
   void reconnect() {
     std::this_thread::sleep_for(std::chrono::milliseconds(2500));
@@ -77,7 +91,7 @@ class callback : public virtual mqtt::callback,
               << "\tfor client " << CLIENT_ID
               << " using QoS" << QOS << "\n"
               << "\nPress Q<Enter> to quit\n" << std::endl;
-
+    out_file_.open("result.csv", std::ios::binary | std::ios::out);
     cli_.subscribe(S_REV_TOPIC, QOS, nullptr, subListener_);
   }
 
@@ -96,7 +110,11 @@ class callback : public virtual mqtt::callback,
     std::cout << "Message arrived" << std::endl;
     std::cout << "\ttopic: '" << msg->get_topic() << "'" << std::endl;
     std::cout << "\tpayload: '" << msg->to_string() << "'\n" << std::endl;
-    std::cout << "Receive time: " << rev_stamp << std::endl;
+    json j = json::parse(msg->to_string());
+    send_stamp = j["timestamp"];
+    std::cout << "Receive time: " << rev_stamp << ", delta = "<< rev_stamp - send_stamp << std::endl;
+    out_file_<< rev_stamp << "," << send_stamp << "," << rev_stamp - send_stamp << std::endl;
+
   }
 
   void delivery_complete(mqtt::delivery_token_ptr token) override {}
@@ -105,6 +123,8 @@ class callback : public virtual mqtt::callback,
   callback(mqtt::async_client &cli, mqtt::connect_options &connOpts)
       : nretry_(0), cli_(cli), connOpts_(connOpts), subListener_("Subscription") {}
 };
+
+timestamp_t callback::send_stamp = 0;
 
 int main(int argc, char *argv[]) {
 
@@ -129,13 +149,27 @@ int main(int argc, char *argv[]) {
               << SERVER_ADDRESS << "'" << std::endl;
     return 1;
   }
-  char tmp[128];
-  sprintf(tmp, "Send time: %lld", TimeStamp::now_with_milliseconds());
-  auto mqtt_message = mqtt::make_message(S_SEND_TOPIC, tmp);
-  mqtt_message->set_qos(QOS);
-  client.publish(mqtt_message)->wait_for(TIMEOUT);
+//  char tmp[128];
+//  for (int i = 0; i < 10; ++i) {
+//    callback::send_stamp = TimeStamp::now_with_milliseconds();
+//    sprintf(tmp, "%lld", callback::send_stamp);
+//    auto mqtt_message = mqtt::make_message(S_SEND_TOPIC, tmp);
+//    mqtt_message->set_qos(QOS);
+//    client.publish(mqtt_message)->wait_for(TIMEOUT);
+//    usleep(1000*100);
+//  }
+  json j;
+  for (int i = 0; i < 50; ++i) {
+    j["timestamp"] = TimeStamp::now_with_milliseconds();
+    auto mqtt_message = mqtt::make_message(S_SEND_TOPIC, to_string(j));
+    mqtt_message->set_qos(QOS);
+    std::cout << "send json = " << j << std::endl;
+    client.publish(mqtt_message)->wait_for(TIMEOUT);
+    usleep(1000*100);
+  }
 
-//  while (std::tolower(std::cin.get()) != 'q'){}
+
+  while (std::tolower(std::cin.get()) != 'q'){}
   sleep(1);
   try {
     std::cout << "\nDisconnecting from the MQTT server..." << std::flush;
